@@ -21,7 +21,7 @@
         physics: {
             default: 'arcade',
             arcade: {
-                gravity: { y: 300 },
+                gravity: { y: 400 },
                 debug: false
             }
         },
@@ -36,12 +36,21 @@
     var platforms;
     var score = 0;
     var cursors;
+    var doubleJump = true;
+    var buttonHeld = false;
+    var clientWin = false;
+    var winScreen;
+    var loseScreen;
+    var winScreenScale;
+    var winScreenAnim = false;
+    var loseScreenAnim = false;
 
     var game = new Phaser.Game(config);
 
     function preload ()
     {
         this.load.image('sky', 'assets/sky.png');
+        this.load.image('Win', 'assets/Win.png');
         this.load.image('ground', 'assets/platform.png');
         this.load.image('star', 'assets/star.png');
         this.load.image('bomb', 'assets/bomb.png');
@@ -102,7 +111,7 @@
 
         });
 
-        flag = this.physics.add.sprite(500, 500, 'flag');
+        flag = this.physics.add.sprite(750, 500, 'flag');
 
         scoreText = this.add.text(16, 16, 'score: 0', { fontSize: '32px', fill: '#000' });
 
@@ -114,6 +123,9 @@
 
         this.physics.add.overlap(player, flag, win, null, this);
 
+        winScreen = this.add.image(400, 300, 'Win').setScale(0);
+        loseScreen = this.add.image(400, 300, 'Win').setScale(0);
+        winScreenScale = 0;
     }
 
     function update ()
@@ -155,9 +167,39 @@
             player.anims.play('turn');
         }
 
+        if(player.body.touching.down && doubleJump == false)
+        {
+            doubleJump = true;
+        }
+
         if (cursors.up.isDown && player.body.touching.down)
         {
             player.setVelocityY(-200);
+            console.log('normal jump');
+            buttonHeld = true;
+        }
+        else if (cursors.up.isDown && doubleJump && !player.body.touching.down && !buttonHeld)
+        {
+            player.setVelocityY(-200);
+            doubleJump = false;
+            console.log('double jump');
+        }
+
+        if(cursors.up.isUp)
+        {
+            buttonHeld = false;
+        }
+
+        if(winScreenScale < 1 && winScreenAnim)
+        {
+            winScreen.setScale(winScreenScale);
+            winScreenScale += 0.02;
+        }
+
+        if(winScreenScale < 1 && loseScreenAnim)
+        {
+            loseScreen.setScale(winScreenScale);
+            winScreenScale += 0.02;
         }
     }
 
@@ -171,7 +213,17 @@
 
     function win(player)
     {
-        console.log('WIN');
+        if(clientWin == false)
+        {
+          clientWin = true;
+          console.log('WIN');
+          winScreenAnim = true;
+        }
+    }
+
+    function lose(player)
+    {
+
     }
 
 </script>
