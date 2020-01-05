@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <title>Making your first Phaser 3 Game - Part 7</title>
     <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <style type="text/css">
         body {
             margin: 0;
@@ -79,6 +80,12 @@
     }
 
     function create ()
+    {
+        this.socket = io();
+        setUpGame(this);
+    }
+
+    function restartLevel()
     {
         setUpGame(this);
     }
@@ -319,7 +326,8 @@
 
 
         platforms.create(500, 420, 'halfGround');
-        platforms.create(50,  300, 'ground');
+        platforms.create(420, 265, 'halfGround');
+        platforms.create(70,  360, 'ground');
         platforms.create(784, 220, 'ground');
         platforms.create(400, 510, 'ground');
 
