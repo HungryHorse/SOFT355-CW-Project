@@ -58,6 +58,8 @@
     var currentHover;
     var currentSelection;
     var selected = false;
+    var otherPlayers;
+    var gameStarted = false;
 
     var game = new Phaser.Game(config);
 
@@ -82,7 +84,56 @@
     function create ()
     {
         this.socket = io();
-        setUpGame(this);
+        var Game = this;
+
+        setUpGame(Game);
+
+        this.socket.on('currentPlayers', function (players) {
+            Object.keys(players).forEach(function (id) {
+                if (players[id].socketID != Game.socket.id) {
+                  addOtherPlayers(Game, players[id]);
+            }
+          });
+        });
+
+        this.socket.on('newPlayer', function (playerInfo) {
+            addOtherPlayers(Game, playerInfo);
+        });
+
+        this.socket.on('disconnect', function (playerInfo) {
+            Game.otherPlayers.getChildren().forEach(function (otherPlayer) {
+                if (playerInfo.socketID === otherPlayer.socketID) {
+                    otherPlayer.destroy();
+                }
+            });
+        });
+
+        this.socket.on('playerMoved', function (playerInfo) {
+            Game.otherPlayers.getChildren().forEach(function (otherPlayer) {
+                if (playerInfo.socketID === otherPlayer.socketID) {
+                    otherPlayer.setPosition(playerInfo.playerX, playerInfo.playerY);
+                }
+            });
+        });
+
+        this.socket.on('winStateUpdated', function(playerInfo)
+        {
+            Game.otherPlayers.getChildren().forEach(function (otherPlayer)
+            {
+                if (playerInfo.socketID === otherPlayer.socketID)
+                {
+                    if(playerInfo.winState == 'lose')
+                    {
+                        otherPlayer.angle += 90;
+                    }
+                }
+            });
+        });
+
+        this.socket.on('gameStart', function()
+        {
+            gameStarted = true;
+        });
     }
 
     function restartLevel()
@@ -92,198 +143,203 @@
 
     function update ()
     {
-        if(!clientLose && !clientWin)
+        if(gameStarted)
         {
-            if(keyR.isDown)
+            if(!clientLose && !clientWin)
             {
-                selecting = !selecting;
-            }
-            if(!selecting)
-            {
-                if(destroyers.children.entries[0] != null)
+                if(!selecting)
                 {
-                    destroyers.children.entries[0].destroy();
-                }
-                selector.setScale(0);
-                selectionScreen.setScale(0);
-                bomb.setScale(0);
-                destroyer.setScale(0);
-                if (cursors.left.isDown)
-                {
-                    if(!player.body.touching.down)
+                    if(destroyers.children.entries[0] != null)
                     {
-                      player.setVelocityX(-100);
+                        destroyers.children.entries[0].destroy();
+                    }
+                    selector.setScale(0);
+                    selectionScreen.setScale(0);
+                    bomb.setScale(0);
+                    destroyer.setScale(0);
+                    if (cursors.left.isDown)
+                    {
+                        if(!player.body.touching.down)
+                        {
+                          player.setVelocityX(-100);
 
-                      player.anims.play('left', true);
+                          player.anims.play('left', true);
+                        }
+                        else
+                        {
+                          player.setVelocityX(-160);
+
+                          player.anims.play('left', true);
+                        }
+                    }
+                    else if (cursors.right.isDown)
+                    {
+                      if(!player.body.touching.down)
+                      {
+                        player.setVelocityX(100);
+
+                        player.anims.play('right', true);
+                      }
+                      else
+                      {
+                        player.setVelocityX(160);
+
+                        player.anims.play('right', true);
+                      }
                     }
                     else
                     {
-                      player.setVelocityX(-160);
+                        player.setVelocityX(0);
 
-                      player.anims.play('left', true);
+                        player.anims.play('turn');
+                    }
+
+                    if(player.body.touching.down && doubleJump == false)
+                    {
+                        doubleJump = true;
+                    }
+
+                    if (cursors.up.isDown && player.body.touching.down)
+                    {
+                        player.setVelocityY(-200);
+                        console.log('normal jump');
+                        buttonHeld = true;
+                    }
+                    else if (cursors.up.isDown && doubleJump && !player.body.touching.down && !buttonHeld)
+                    {
+                        player.setVelocityY(-200);
+                        doubleJump = false;
+                        console.log('double jump');
+                    }
+
+                    if(cursors.up.isUp)
+                    {
+                        buttonHeld = false;
+                    }
+
+                    if(winScreenScale < 1 && winScreenAnim)
+                    {
+                        winScreen.setScale(winScreenScale);
+                        winScreenScale += 0.02;
+                    }
+
+                    if(winScreenScale < 1 && loseScreenAnim)
+                    {
+                        loseScreen.setScale(winScreenScale);
+                        winScreenScale += 0.02;
                     }
                 }
-                else if (cursors.right.isDown)
-                {
-                  if(!player.body.touching.down)
-                  {
-                    player.setVelocityX(100);
-
-                    player.anims.play('right', true);
-                  }
-                  else
-                  {
-                    player.setVelocityX(160);
-
-                    player.anims.play('right', true);
-                  }
-                }
                 else
-                {
-                    player.setVelocityX(0);
-
-                    player.anims.play('turn');
-                }
-
-                if(player.body.touching.down && doubleJump == false)
-                {
-                    doubleJump = true;
-                }
-
-                if (cursors.up.isDown && player.body.touching.down)
-                {
-                    player.setVelocityY(-200);
-                    console.log('normal jump');
-                    buttonHeld = true;
-                }
-                else if (cursors.up.isDown && doubleJump && !player.body.touching.down && !buttonHeld)
-                {
-                    player.setVelocityY(-200);
-                    doubleJump = false;
-                    console.log('double jump');
-                }
-
-                if(cursors.up.isUp)
-                {
-                    buttonHeld = false;
-                }
-
-                if(winScreenScale < 1 && winScreenAnim)
-                {
-                    winScreen.setScale(winScreenScale);
-                    winScreenScale += 0.02;
-                }
-
-                if(winScreenScale < 1 && loseScreenAnim)
-                {
-                    loseScreen.setScale(winScreenScale);
-                    winScreenScale += 0.02;
-                }
-            }
-            else
-            {
-                bomb.setScale(2);
-                destroyer.setScale(1);
-                if(keySpace.isUp)
-                {
-                    buttonHeld = false;
-                }
-                if(!selected)
-                {
-                    selector.setScale(1);
-                    selectionScreen.setScale(1);
-                }
-                else
-                {
-                    selectionScreen.setScale(0);
-                }
-                if(currentHover != null)
                 {
                     bomb.setScale(2);
                     destroyer.setScale(1);
-                    switch(currentHover.name)
+                    if(keySpace.isUp)
                     {
-                        case "bomb":
-                        bomb.setScale(4);
-                        if(keySpace.isDown)
-                        {
-                            buttonHeld = true;
-                            currentSelection = "bomb";
-                            bomb.destroy();
-                            destroyer.destroy();
-                            selector.setTexture('bomb');
-                            selected = true;
-                        }
-                        break;
-                        case "destroyer":
-                        destroyer.setScale(2);
-                        if(keySpace.isDown)
-                        {
-                            buttonHeld = true;
-                            currentSelection = "destroyer";
-                            destroyer.destroy();
-                            bomb.destroy();
-                            selector.setTexture('destroyer');
-                            selected = true;
-                        }
-                        break;
+                        buttonHeld = false;
                     }
-                }
-                if(selected)
-                {
-                    if(keySpace.isDown && !buttonHeld)
+                    if(!selected)
                     {
-                        switch(currentSelection)
+                        selector.setScale(1);
+                        selectionScreen.setScale(1);
+                    }
+                    else
+                    {
+                        selectionScreen.setScale(0);
+                    }
+                    if(currentHover != null)
+                    {
+                        bomb.setScale(2);
+                        destroyer.setScale(1);
+                        switch(currentHover.name)
                         {
                             case "bomb":
-                                bomb.setScale(1);
-                                obstacles.create(selector.x, selector.y, "bomb");
-                                selected = false;
-                                selecting = false;
-                                break;
+                            bomb.setScale(4);
+                            if(keySpace.isDown)
+                            {
+                                buttonHeld = true;
+                                currentSelection = "bomb";
+                                bomb.destroy();
+                                destroyer.destroy();
+                                selector.setTexture('bomb');
+                                selected = true;
+                            }
+                            break;
                             case "destroyer":
-                                destroyer.setScale(1);
-                                destroyers.create(selector.x, selector.y, "destroyer");
-                                selected = false;
-                                selecting = false;
-                                break;
+                            destroyer.setScale(2);
+                            if(keySpace.isDown)
+                            {
+                                buttonHeld = true;
+                                currentSelection = "destroyer";
+                                destroyer.destroy();
+                                bomb.destroy();
+                                selector.setTexture('destroyer');
+                                selected = true;
+                            }
+                            break;
                         }
-                        selector.setScale(0);
-                        selectionScreen.setScale(0);
-                        setUpSelection(this);
+                    }
+                    if(selected)
+                    {
+                        if(keySpace.isDown && !buttonHeld)
+                        {
+                            switch(currentSelection)
+                            {
+                                case "bomb":
+                                    bomb.setScale(1);
+                                    obstacles.create(selector.x, selector.y, "bomb");
+                                    selected = false;
+                                    selecting = false;
+                                    break;
+                                case "destroyer":
+                                    destroyer.setScale(1);
+                                    destroyers.create(selector.x, selector.y, "destroyer");
+                                    selected = false;
+                                    selecting = false;
+                                    break;
+                            }
+                            selector.setScale(0);
+                            selectionScreen.setScale(0);
+                            setUpSelection(this);
+                        }
+                    }
+                    if (cursors.left.isDown)
+                    {
+                        selector.setVelocityX(-200);
+                    }
+                    else if (cursors.right.isDown)
+                    {
+                        selector.setVelocityX(200);
+                    }
+                    else
+                    {
+                        selector.setVelocityX(0);
+                    }
+                    if (cursors.up.isDown)
+                    {
+                        selector.setVelocityY(-200);
+                    }
+                    else if (cursors.down.isDown)
+                    {
+                        selector.setVelocityY(200);
+                    }
+                    else
+                    {
+                        selector.setVelocityY(0);
                     }
                 }
-                if (cursors.left.isDown)
-                {
-                    selector.setVelocityX(-200);
-                }
-                else if (cursors.right.isDown)
-                {
-                    selector.setVelocityX(200);
-                }
-                else
-                {
-                    selector.setVelocityX(0);
-                }
-                if (cursors.up.isDown)
-                {
-                    selector.setVelocityY(-200);
-                }
-                else if (cursors.down.isDown)
-                {
-                    selector.setVelocityY(200);
-                }
-                else
-                {
-                    selector.setVelocityY(0);
-                }
             }
+
+            currentHover = null;
+
+            // emit player movement
+            var x = player.x;
+            var y = player.y;
+            this.socket.emit('playerMovement', { playerX: player.x, playerY: player.y});
+
+            //timer = game.time.totalElapsedSeconds();
+            //timerText.setText('Time:' + timer);
         }
 
-        currentHover = null;
-
-        //timer = game.time.totalElapsedSeconds();
-        //timerText.setText('Time:' + timer);
     }
 
     function collectStar (player, star)
@@ -301,6 +357,7 @@
           clientWin = true;
           console.log('WIN');
           winScreenAnim = true;
+          this.socket.emit('winState', { playerWinState: 'win'});
         }
     }
 
@@ -312,6 +369,7 @@
             player.setVelocityX(0);
             player.anims.play('turn');
             clientLose = true;
+            this.socket.emit('winState', { playerWinState: 'lose'});
         }
     }
 
@@ -338,6 +396,8 @@
         walls.create(1100,600, 'halfWall');
 
         player = Game.physics.add.sprite(100, 450, 'dude');
+
+        Game.otherPlayers = Game.physics.add.staticGroup();
 
         obstacles = Game.physics.add.staticGroup();
 
@@ -467,6 +527,14 @@
         object.destroy();
     }
 
+    function addOtherPlayers(Game, playerInfo)
+    {
+        const otherPlayer = Game.add.sprite(100, 450, 'dude');
+
+        otherPlayer.socketID = playerInfo.socketID;
+
+        Game.otherPlayers.add(otherPlayer);
+    }
 </script>
 
 </body>
