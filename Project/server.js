@@ -5,6 +5,8 @@ var serveStatic = require('serve-static');
 var app = express();
 var server = require('http').Server(app);
 var io = require('socket.io').listen(server);
+
+//mongoose
 var mongoose = require('mongoose');
 const uri = "mongodb+srv://HungryHorse:gamepw@jackbrewercluster-oq2qw.mongodb.net/test?retryWrites=true&w=majority"
 mongoose.connect(uri, {useNewUrlParser: true, useUnifiedTopology : true});
@@ -15,6 +17,15 @@ db.on("error", () => {
 db.once("open", () => {
     console.log("> Successfully connected to the database");
 });
+
+const schema = {
+  playerSocket : { type: mongoose.SchemaTypes.String, required: true },
+  playerPoints : { type: mongoose.SchemaTypes.Number, required: true }
+};
+const collectionName = "points";
+const pointSchema = mongoose.Schema(schema);
+const PointModel = mongoose.model(collectionName,pointSchema);
+var PointList = [];
 
 var players = {};
 var obstacles = {};
@@ -126,6 +137,7 @@ function disconnect(socket)
 {
     if(players[socket.id] != null)
     {
+        sendToDataBase(socket.id, players[socket.id].points)
         if(playerNumber > 2)
         {
             console.log("A player has disconnected.");
@@ -214,4 +226,13 @@ function endRound()
     io.emit('serverSideDestroyers', destroyers);
     io.emit('currentPlayers', players);
     io.emit('gameStart');
+}
+
+function sendToDataBase(socketID, points)
+{
+  PointModel.create(
+    {
+      playerSocket: socketID,
+      playerPoints: points
+    });
 }
