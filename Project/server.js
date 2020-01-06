@@ -5,6 +5,16 @@ var serveStatic = require('serve-static');
 var app = express();
 var server = require('http').Server(app);
 var io = require('socket.io').listen(server);
+var mongoose = require('mongoose');
+const uri = "mongodb+srv://HungryHorse:gamepw@jackbrewercluster-oq2qw.mongodb.net/test?retryWrites=true&w=majority"
+mongoose.connect(uri, {useNewUrlParser: true, useUnifiedTopology : true});
+const db = mongoose.connection;
+db.on("error", () => {
+    console.log("> Error occurred from the database");
+});
+db.once("open", () => {
+    console.log("> Successfully connected to the database");
+});
 
 var players = {};
 var obstacles = {};
@@ -12,7 +22,10 @@ var destroyers = {};
 
 var serve = serveStatic("./");
 var playerNumber = 1;
+var obstacleNumber = 0;
+var destroyerNumber = 0;
 var playerInWinState = 0;
+var playersReady = 0;
 
 
 app.use(express.static('./'));//Serving static file
@@ -35,8 +48,46 @@ io.on('connection', function (socket) {
   {
       players[socket.id].winState = winStateObject.playerWinState;
       playerInWinState++;
+      if(players[socket.id].winState == 'win')
+      {
+          players[socket.id].points += 1;
+      }
       checkForRoundEnd();
       socket.broadcast.emit('winStateUpdated', players[socket.id]);
+  });
+
+  socket.on('winStateNone', function (winStateObject)
+  {
+      players[socket.id].winState = winStateObject.playerWinState;
+  });
+
+  socket.on('placeObstacle', function (placeInformation)
+  {
+      obstacles[obstacleNumber] =
+      {
+          objectX: placeInformation.x,
+          objectY: placeInformation.y
+      }
+      obstacleNumber++;
+      playersReady++;
+      checkForRoundStart();
+  });
+
+  socket.on('placeDestroyer', function (placeInformation)
+  {
+      destroyers[destroyerNumber] =
+      {
+          objectX: placeInformation.x,
+          objectY: placeInformation.y
+      }
+      destroyerNumber++;
+      playersReady++;
+      checkForRoundStart();
+  });
+
+  socket.on('requestScoreUpdate', function ()
+  {
+      socket.emit('scoreUpdate', players[socket.id]);
   });
 });
 
@@ -46,7 +97,7 @@ server.listen(9000, function() {
 
 function connect(socket)
 {
-    if(playerNumber <= 4)
+    if(playerNumber <= 2)
     {
         console.log("Player " + playerNumber + " has connected.");
         players[socket.id] =
@@ -54,7 +105,8 @@ function connect(socket)
             socketID: socket.id,
             playerX: 100,
             playerY: 450,
-            winState: 'none'
+            winState: 'none',
+            points: 0
         }
         playerNumber++;
         // send the players object to the new player
@@ -85,6 +137,8 @@ function disconnect(socket)
             console.log("Last player has disconnected.");
             delete players[socket.id];
             playerNumber--;
+            delete obstacles;
+            delete destroyers;
         }
         io.emit('disconnect', socket.id);
     }
@@ -94,7 +148,7 @@ function checkForGameStart(socket)
 {
     var gameStart = true;
 
-    if(playerNumber <= 4)
+    if(playerNumber <= 2)
     {
         gameStart = false
     }
@@ -105,10 +159,24 @@ function checkForGameStart(socket)
     }
 }
 
+function checkForRoundStart()
+{
+    var roundStart = true;
+    if(playersReady < 2)
+    {
+        roundStart = false;
+    }
+
+    if(roundStart)
+    {
+        startRound();
+    }
+}
+
 function checkForRoundEnd()
 {
     var gameEnd = true;
-    if(playerInWinState < 4)
+    if(playerInWinState < 2)
     {
         gameEnd = false;
     }
@@ -125,8 +193,25 @@ function startGame()
     io.emit('gameStart');
 }
 
+function startRound()
+{
+    console.log("Start Round");
+    io.emit('serverSideObstacles', obstacles);
+    io.emit('serverSideDestroyers', destroyers);
+    io.emit('playersReady');
+}
+
 function endRound()
 {
     console.log("End Round");
     playerInWinState = 0;
+    obstacleNumber = 0;
+    destroyerNumber = 0;
+    playerInWinState = 0;
+    playersReady = 0;
+    io.emit('newRound');
+    io.emit('serverSideObstacles', obstacles);
+    io.emit('serverSideDestroyers', destroyers);
+    io.emit('currentPlayers', players);
+    io.emit('gameStart');
 }
