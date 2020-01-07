@@ -18,14 +18,25 @@ db.once("open", () => {
     console.log("> Successfully connected to the database");
 });
 
-const schema = {
+const playerSchema = {
   playerSocket : { type: mongoose.SchemaTypes.String, required: true },
-  playerPoints : { type: mongoose.SchemaTypes.Number, required: true }
+  playerPoints : { type: mongoose.SchemaTypes.Number, required: true },
+  playerPosition: { type: mongoose.SchemaTypes.String, required: true }
 };
-const collectionName = "points";
-const pointSchema = mongoose.Schema(schema);
-const PointModel = mongoose.model(collectionName,pointSchema);
+const playerCollectionName = "points";
+const pointSchema = mongoose.Schema(playerSchema);
+const PointModel = mongoose.model(playerCollectionName,pointSchema);
 var PointList = [];
+
+const itemSchema =
+{
+    objectX: { type: mongoose.SchemaTypes.Number, required: true },
+    objectY: { type: mongoose.SchemaTypes.Number, required: true }
+};
+const itemCollectionName = "items";
+const placedSchema = mongoose.Schema(itemSchema);
+const PlacedModel = mongoose.model(itemCollectionName,placedSchema);
+var PlacedList = [];
 
 var players = {};
 var obstacles = {};
@@ -65,6 +76,7 @@ io.on('connection', function (socket) {
       }
       checkForRoundEnd();
       socket.broadcast.emit('winStateUpdated', players[socket.id]);
+      updatePlayerDataBase(socket.id, players[socket.id].points, players[socket.id].position);
   });
 
   socket.on('winStateNone', function (winStateObject)
@@ -79,6 +91,7 @@ io.on('connection', function (socket) {
           objectX: placeInformation.x,
           objectY: placeInformation.y
       }
+      newItemToDataBase(placeInformation.x,placeInformation.y);
       obstacleNumber++;
       playersReady++;
       checkForRoundStart();
@@ -91,6 +104,7 @@ io.on('connection', function (socket) {
           objectX: placeInformation.x,
           objectY: placeInformation.y
       }
+      newItemToDataBase(placeInformation.x,placeInformation.y);
       destroyerNumber++;
       playersReady++;
       checkForRoundStart();
@@ -117,7 +131,8 @@ function connect(socket)
             playerX: 100,
             playerY: 450,
             winState: 'none',
-            points: 0
+            points: 0,
+            position: "N/A"
         }
         playerNumber++;
         // send the players object to the new player
@@ -126,6 +141,8 @@ function connect(socket)
         socket.broadcast.emit('newPlayer', players[socket.id]);
 
         checkForGameStart(socket);
+
+        newPlayerDataBase(socket.id, 0, "N/A");
     }
     else
     {
@@ -137,7 +154,7 @@ function disconnect(socket)
 {
     if(players[socket.id] != null)
     {
-        sendToDataBase(socket.id, players[socket.id].points)
+        updatePlayerDataBase(socket.id, players[socket.id].points, players[socket.id].position)
         if(playerNumber > 2)
         {
             console.log("A player has disconnected.");
@@ -151,6 +168,7 @@ function disconnect(socket)
             playerNumber--;
             delete obstacles;
             delete destroyers;
+            console.log(PointModel);
         }
         io.emit('disconnect', socket.id);
     }
@@ -202,12 +220,22 @@ function checkForRoundEnd()
 function startGame()
 {
     console.log("Game Start");
+    newItemToDataBase(0,0);
+    PlacedModel.deleteMany({"objectX" : {$gt : -1}}, function(err, result) {
+        if (err) {
+            console.log(err);
+        } else {
+          console.log(result);
+        }
+    });
     io.emit('gameStart');
 }
 
 function startRound()
 {
     console.log("Start Round");
+    createPosTable();
+    io.emit('posUpdate', players);
     io.emit('serverSideObstacles', obstacles);
     io.emit('serverSideDestroyers', destroyers);
     io.emit('playersReady');
@@ -228,11 +256,97 @@ function endRound()
     io.emit('gameStart');
 }
 
-function sendToDataBase(socketID, points)
+function newPlayerDataBase(socketID, points, position)
 {
   PointModel.create(
     {
       playerSocket: socketID,
-      playerPoints: points
+      playerPoints: points,
+      playerPosition: position
+    });
+}
+
+function updatePlayerDataBase(socketID, points, position)
+{
+    PointModel.update({playerSocket: socketID},
+        {
+            playerPoints: points,
+            playerPosition: position
+        });
+}
+
+function newItemToDataBase(x, y)
+{
+    PlacedModel.create(
+        {
+            objectX: x,
+            objectY: y
+        });
+}
+
+function createPosTable()
+{
+    var first;
+    var second;
+    var third;
+    var fourth;
+
+    var highest = {};
+    highest.points = -1;
+
+    Object.keys(players).forEach(function (player)
+    {
+        if(players[player].points > highest.points)
+        {
+            highest = players[player];
+            players[player].position = "1st";
+        }
+    });
+
+    first = highest;
+
+    highest = {};
+    highest.points = -1;
+
+    Object.keys(players).forEach(function (player)
+    {
+        if(players[player].points > highest.points && players[player].socketID != first.socketID)
+        {
+            highest = players[player];
+            players[player].position = "2nd";
+        }
+    });
+
+    second = highest;
+
+    highest = {};
+    highest.points = -1;
+
+    Object.keys(players).forEach(function (player)
+    {
+        if(players[player].points > highest.points && players[player].socketID != first.socketID && players[player].socketID != second.socketID)
+        {
+            highest = players[player];
+            players[player].position = "3rd";
+        }
+    });
+
+    third = highest;
+
+    highest = {};
+    highest.points = -1;
+
+    Object.keys(players).forEach(function (player)
+    {
+        if(players[player].points > highest.points && players[player].socketID != first.socketID && players[player].socketID != second.socketID && players[player].socketID != third.socketID)
+        {
+            highest = players[player];
+            players[player].position = "4th";
+        }
+    });
+
+    Object.keys(players).forEach(function (player)
+    {
+        updatePlayerDataBase(players[player].socketID, players[player].points, players[player].position);
     });
 }
