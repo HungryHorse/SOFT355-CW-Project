@@ -146,7 +146,7 @@
                 {
                     if(playerInfo.winState == 'lose')
                     {
-                        otherPlayer.angle += 90;
+                        otherPlayer.angle = 90;
                     }
                 }
             });
@@ -159,10 +159,10 @@
 
         this.socket.on('serverSideObstacles',function(obstacleInfo)
         {
-            var size = Object.keys(obstacleInfo).length;
-            for (var i = 0; i < size; i++) {
-                placeObstacle(obstacleInfo[i].objectX, obstacleInfo[i].objectY);
-            }
+          var size = Object.keys(obstacleInfo).length;
+          for (var i = 0; i < size; i++) {
+              placeObstacle(obstacleInfo[i].objectX, obstacleInfo[i].objectY);
+          }
         });
 
         this.socket.on('serverSideDestroyers',function(destroyerInfo)
@@ -173,8 +173,21 @@
             }
         });
 
+        this.socket.on('ClearObstacle', function()
+        {
+            if(Game.obstacles != null){
+                Game.obstacles.getChildren().forEach(function (object){
+                  object.destroy();
+                });
+            }
+        });
+
         this.socket.on('newRound', function()
         {
+            Game.otherPlayers.getChildren().forEach(function (otherPlayer)
+            {
+              otherPlayer.angle = 0;
+            });
             restartGame(Game);
         });
 
@@ -202,12 +215,13 @@
 
     function placeObstacle(obstacleX, obstacleY)
     {
+        console.log("Place");
         obstacles.create(Math.floor(obstacleX), Math.floor(obstacleY), "bomb");
     }
 
     function placeDestroyer(destroyerX, destroyerY)
     {
-        destroyers.create(destroyerX, destroyerY, "destroyer");
+        destroyers.create(Math.floor(destroyerX), Math.floor(destroyerY), "destroyer");
     }
 
     function update ()
@@ -218,10 +232,6 @@
             {
                 if(!selecting)
                 {
-                    if(destroyers.children.entries[0] != null)
-                    {
-                        destroyers.children.entries[0].destroy();
-                    }
                     selector.setScale(0);
                     selectionScreen.setScale(0);
                     bomb.setScale(0);
@@ -294,6 +304,11 @@
                     {
                         loseScreen.setScale(winScreenScale);
                         winScreenScale += 0.02;
+                    }
+
+                    if(destroyers.children.entries[0] != null)
+                    {
+                        destroyers.children.entries[0].destroy();
                     }
                 }
                 else

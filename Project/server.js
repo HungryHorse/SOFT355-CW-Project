@@ -46,6 +46,8 @@ var serve = serveStatic("./");
 var playerNumber = 1;
 var obstacleNumber = 0;
 var destroyerNumber = 0;
+var totalObstacleNumber = 0;
+var totalDestroyerNumber = 0;
 var playerInWinState = 0;
 var playersReady = 0;
 
@@ -86,26 +88,28 @@ io.on('connection', function (socket) {
 
   socket.on('placeObstacle', function (placeInformation)
   {
-      obstacles[obstacleNumber] =
+      obstacles[totalObstacleNumber] =
       {
           objectX: placeInformation.x,
           objectY: placeInformation.y
       }
       newItemToDataBase(placeInformation.x,placeInformation.y);
       obstacleNumber++;
+      totalObstacleNumber++;
       playersReady++;
       checkForRoundStart();
   });
 
   socket.on('placeDestroyer', function (placeInformation)
   {
-      destroyers[destroyerNumber] =
+      destroyers[totalDestroyerNumber] =
       {
           objectX: placeInformation.x,
           objectY: placeInformation.y
       }
       newItemToDataBase(placeInformation.x,placeInformation.y);
       destroyerNumber++;
+      totalDestroyerNumber++;
       playersReady++;
       checkForRoundStart();
   });
@@ -134,6 +138,7 @@ function connect(socket)
             points: 0,
             position: "N/A"
         }
+        newPlayerDataBase(socket.id, 0, "N/A");
         playerNumber++;
         // send the players object to the new player
         socket.emit('currentPlayers', players);
@@ -141,8 +146,6 @@ function connect(socket)
         socket.broadcast.emit('newPlayer', players[socket.id]);
 
         checkForGameStart(socket);
-
-        newPlayerDataBase(socket.id, 0, "N/A");
     }
     else
     {
@@ -220,12 +223,9 @@ function checkForRoundEnd()
 function startGame()
 {
     console.log("Game Start");
-    newItemToDataBase(0,0);
     PlacedModel.deleteMany({"objectX" : {$gt : -1}}, function(err, result) {
         if (err) {
             console.log(err);
-        } else {
-          console.log(result);
         }
     });
     io.emit('gameStart');
@@ -235,10 +235,12 @@ function startRound()
 {
     console.log("Start Round");
     createPosTable();
+    io.emit('ClearObstacle');
     io.emit('posUpdate', players);
+    io.emit('playersReady');
+
     io.emit('serverSideObstacles', obstacles);
     io.emit('serverSideDestroyers', destroyers);
-    io.emit('playersReady');
 }
 
 function endRound()
@@ -268,11 +270,18 @@ function newPlayerDataBase(socketID, points, position)
 
 function updatePlayerDataBase(socketID, points, position)
 {
-    PointModel.update({playerSocket: socketID},
-        {
-            playerPoints: points,
-            playerPosition: position
-        });
+  PointModel.deleteOne({"playerSocket" : socketID}, function(err, result) {
+      if (err) {
+          console.log(err);
+      }
+  });
+
+  PointModel.create(
+    {
+      playerSocket: socketID,
+      playerPoints: points,
+      playerPosition: position
+    });
 }
 
 function newItemToDataBase(x, y)
