@@ -5,6 +5,9 @@ var serveStatic = require('serve-static');
 var app = express();
 var server = require('http').Server(app);
 var io = require('socket.io').listen(server);
+var bodyParser  = require("body-parser");
+
+app.use(bodyParser.urlencoded({extended: true}));
 
 //mongoose
 var mongoose = require('mongoose');
@@ -123,6 +126,48 @@ io.on('connection', function (socket) {
 server.listen(9000, function() {
     console.log("Server running at: http://localhost:" + 9000)
 });
+
+app.get("/testConnect/:id", connectNoEmit);
+app.get("/testDisconnect/:id", disconnectNoEmit);
+app.post("/testPos/", createPosTable);
+app.post("/testPlacing/", testPlacing);
+
+function testPlacing(req, res)
+{
+    var placeInformation = req.body.object;
+    obstacles[totalObstacleNumber] =
+    {
+        objectX: placeInformation.x,
+        objectY: placeInformation.y
+    }
+    obstacleNumber++;
+    totalObstacleNumber++;
+    res.send(obstacles);
+}
+
+function connectNoEmit(req, res)
+{
+  socket = {};
+  socket.id = req.params.id;
+  players[socket.id] =
+  {
+      socketID: socket.id,
+      playerX: 100,
+      playerY: 450,
+      winState: 'none',
+      points: 0,
+      position: "N/A"
+  }
+  res.send(players);
+}
+
+function disconnectNoEmit(req,res)
+{
+  socket = {};
+  socket.id = req.params.id;
+  delete players[socket.id];
+  res.send(players);
+}
 
 function connect(socket)
 {
@@ -358,4 +403,71 @@ function createPosTable()
     {
         updatePlayerDataBase(players[player].socketID, players[player].points, players[player].position);
     });
+}
+
+function createPosTable(req, res)
+{
+    var localPlayers = req.body.players;
+    var first;
+    var second;
+    var third;
+    var fourth;
+
+    var highest = {};
+    highest.points = -1;
+
+    Object.keys(localPlayers).forEach(function (player)
+    {
+        if(localPlayers[player].points > highest.points)
+        {
+            highest = localPlayers[player];
+            localPlayers[player].position = "1st";
+        }
+    });
+
+    first = highest;
+
+    highest = {};
+    highest.points = -1;
+
+    Object.keys(localPlayers).forEach(function (player)
+    {
+        if(localPlayers[player].points > highest.points && localPlayers[player].socketID != first.socketID)
+        {
+            highest = localPlayers[player];
+            localPlayers[player].position = "2nd";
+        }
+    });
+
+    second = highest;
+
+    highest = {};
+    highest.points = -1;
+
+    Object.keys(localPlayers).forEach(function (player)
+    {
+        if(localPlayers[player].points > highest.points && localPlayers[player].socketID != first.socketID && localPlayers[player].socketID != second.socketID)
+        {
+            highest = localPlayers[player];
+            localPlayers[player].position = "3rd";
+        }
+    });
+
+    third = highest;
+
+    highest = {};
+    highest.points = -1;
+
+    Object.keys(localPlayers).forEach(function (player)
+    {
+        if(localPlayers[player].points > highest.points && localPlayers[player].socketID != first.socketID && localPlayers[player].socketID != second.socketID && localPlayers[player].socketID != third.socketID)
+        {
+            highest = localPlayers[player];
+            localPlayers[player].position = "4th";
+        }
+    });
+
+    fourth = highest;
+
+    res.send({firstPos: first, secondPos: second, thirdPos: third, fourthPos: fourth});
 }
