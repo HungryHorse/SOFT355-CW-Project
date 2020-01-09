@@ -129,7 +129,7 @@ server.listen(9000, function() {
 
 app.get("/testConnect/:id", connectNoEmit);
 app.get("/testDisconnect/:id", disconnectNoEmit);
-app.post("/testPos/", createPosTable);
+app.post("/testPos/", testCreatePosTable);
 app.post("/testPlacing/", testPlacing);
 
 function testPlacing(req, res)
@@ -405,7 +405,7 @@ function createPosTable()
     });
 }
 
-function createPosTable(req, res)
+function testCreatePosTable(req, res)
 {
     var localPlayers = req.body.players;
     var first;
